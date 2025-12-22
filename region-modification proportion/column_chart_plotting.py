@@ -57,7 +57,7 @@ def process_sites_file(file_path):
     return site_regions, site_to_rna
 
 
-def main(file1, file2, output_file='modification_region_distribution_correct_biology.png'):
+def main(file1, file2, output_file='modification_region_distribution.png'):
     # 处理文件，获取位点-区域、位点-RNA映射
     sites_37_regions, sites_37_rna = process_sites_file(file1)
     sites_45_regions, sites_45_rna = process_sites_file(file2)
