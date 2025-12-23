@@ -8,5 +8,6 @@ mkdir -p $WORK_DIR/{
   qc_report/{raw,clean,summary},  # 质量控制报告：原始fastq的QC、过滤后QC、汇总报告
   reference/{genome,gtf,index},   # 参考基因组相关：基因组序列、注释文件、STAR/bowtie2索引。但是gtf和索引一般已经建立在公共库
   bam,              # 比对后的BAM文件及索引（.bam和.bai），是exomePeak2 输入
-  result/{exomepeak2,enrichment,plots}  # 分析结果：差异位点、富集分析、可视化图表
+  result/{exomepeak2,enrichment,plots},  # 分析结果：差异位点、富集分析、可视化图表
+  log               #储存运算的日志
 }
