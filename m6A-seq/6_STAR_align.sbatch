@@ -9,71 +9,71 @@
 #SBATCH --time=8:00:00
 #SBATCH --partition=hpxg
 
-# ===================== 核心路径配置（和你成功的单个脚本一致） =====================
+# ===================== 核心修正：去掉子文件夹路径 =====================
 STAR_PATH="/project/liangzhanhao/soft/bin/STAR"
 GENOME_DIR="/project/liangzhanhao/m6a_analysis/reference/index/star_hg38"
-FASTQ_DIR="/project/liangzhanhao/m6a_analysis/raw_fasta"
+FASTQ_DIR="/project/liangzhanhao/m6a_analysis/raw_fastq"  
 OUT_ROOT="/project/liangzhanhao/m6a_analysis/align_results"
-SAMPLE_LIST="/project/liangzhanhao/m6a_analysis/samples.list"  # 样本列表文件
-SAMTOOLS="/project/liangzhanhao/soft/bin/samtools"  # 假设samtools路径和STAR同目录，若不同请替换
+SAMPLE_LIST="/project/liangzhanhao/m6a_analysis/samples.list"
+SAMTOOLS="/project/liangzhanhao/soft/bin/samtools"
 
 # ===================== 前置检查 =====================
-# 创建日志目录
 mkdir -p /project/liangzhanhao/m6a_analysis/log
 
-# 检查STAR是否可执行
 if [ ! -x "${STAR_PATH}" ]; then
     echo "ERROR: STAR路径不可执行 - ${STAR_PATH}" >&2
     exit 1
 fi
-
-# 检查基因组索引目录
 if [ ! -d "${GENOME_DIR}" ] || [ ! -f "${GENOME_DIR}/Genome" ]; then
     echo "ERROR: STAR索引目录无效 - ${GENOME_DIR}" >&2
     exit 1
 fi
-
-# 检查样本列表文件
 if [ ! -f "${SAMPLE_LIST}" ]; then
     echo "ERROR: 样本列表文件不存在 - ${SAMPLE_LIST}" >&2
     exit 1
 fi
-
-# 检查samtools
-if [ ! -x "${SAMTOOLS}" ]; then
-    echo "WARNING: samtools路径不可执行，跳过BAM索引 - ${SAMTOOLS}" >&2
-    SAMTOOLS=""
+if [ ! -d "${FASTQ_DIR}" ]; then
+    echo "ERROR: raw_fastq目录不存在 - ${FASTQ_DIR}" >&2
+    exit 1
 fi
 
-# ===================== 批量比对样本 =====================
+# ===================== 批量比对（路径直接拼接：raw_fastq/样本名.fastq.gz） =====================
 echo "===== 开始批量STAR比对 | 时间：$(date) ====="
+echo "fastq根目录：${FASTQ_DIR}"
 echo "样本列表：${SAMPLE_LIST}"
 echo "输出目录：${OUT_ROOT}"
 
-# 读取样本列表并循环处理
 cat "${SAMPLE_LIST}" | while read -r sample; do
-    # 跳过空行和注释行
     if [[ -z "${sample}" || "${sample}" =~ ^# ]]; then
         continue
     fi
 
     echo -e "\n===== 处理样本：${sample} | 时间：$(date) ====="
     
-    # 定义当前样本路径
+
     FASTQ_FILE="${FASTQ_DIR}/${sample}.fastq.gz"
     OUT_DIR="${OUT_ROOT}/${sample}"
     BAM_FILE="${OUT_DIR}/${sample}_Aligned.sortedByCoord.out.bam"
     
-    # 检查fastq文件是否存在
+    # 打印实际查找的路径，方便核对
+    echo "正在查找fastq文件：${FASTQ_FILE}"
+    
     if [ ! -f "${FASTQ_FILE}" ]; then
-        echo "ERROR: 样本${sample}的fastq文件不存在 - ${FASTQ_FILE}" >&2
-        continue
+        echo "ERROR: 样本${sample}的fastq文件不存在！" >&2
+        # 自动检测后缀是否是.fq.gz（备选）
+        FASTQ_FILE_FQ="${FASTQ_DIR}/${sample}.fq.gz"
+        if [ -f "${FASTQ_FILE_FQ}" ]; then
+            echo "提示：找到.fq.gz后缀的文件，自动切换路径：${FASTQ_FILE_FQ}" >&2
+            FASTQ_FILE="${FASTQ_FILE_FQ}"
+        else
+            continue
+        fi
     fi
 
-    # 创建输出目录
     mkdir -p "${OUT_DIR}"
 
-    # STAR比对（和你成功的单个脚本参数完全一致）
+    # STAR比对（参数和你成功的脚本一致）
+    echo "开始STAR比对..."
     ${STAR_PATH} \
         --runMode alignReads \
         --genomeDir "${GENOME_DIR}" \
@@ -93,27 +93,23 @@ cat "${SAMPLE_LIST}" | while read -r sample; do
         --alignMatesGapMax 1000000 \
         --runThreadN 16
 
-    # 检查BAM是否生成
     if [ ! -f "${BAM_FILE}" ]; then
-        echo "ERROR: 样本${sample}比对失败，未生成BAM文件 - ${BAM_FILE}" >&2
+        echo "ERROR: 样本${sample}比对失败，未生成BAM文件" >&2
         continue
     fi
 
-    echo "SUCCESS: 样本${sample}比对完成，BAM文件：${BAM_FILE}"
+    echo "SUCCESS: 样本${sample}比对完成！BAM文件：${BAM_FILE}"
 
-    # samtools构建BAM索引（可选，和你成功的脚本一致）
-    if [ -n "${SAMTOOLS}" ]; then
-        echo "开始构建${sample}的BAM索引..."
+    # samtools索引
+    if [ -x "${SAMTOOLS}" ]; then
+        echo "开始构建BAM索引..."
         ${SAMTOOLS} index "${BAM_FILE}"
-        
         if [ -f "${BAM_FILE}.bai" ]; then
-            echo "SUCCESS: ${sample}的BAM索引构建完成"
-        else
-            echo "ERROR: ${sample}的BAM索引构建失败" >&2
+            echo "SUCCESS: BAM索引构建完成！"
         fi
     fi
 
 done
 
 echo -e "\n===== 批量比对结束 | 时间：$(date) ====="
-echo "所有结果已输出至：${OUT_ROOT}"
+echo "所有结果输出至：${OUT_ROOT}"
